@@ -1,8 +1,8 @@
 # ETH Transfers — Solidity Native Value Flow
 
-This project demonstrates how Ethereum smart contracts receive, route, account for, and send native ETH.
+This project demonstrates how Ethereum smart contracts receive, route, account for, and safely send native ETH.
 
-It covers the complete ETH entry and exit lifecycle using Solidity primitives and tests that prove execution behavior.
+It covers the complete ETH entry and exit lifecycle using Solidity primitives and execution patterns that preserve accounting integrity.
 
 Built with Hardhat and execution-focused tests.
 
@@ -12,14 +12,12 @@ Built with Hardhat and execution-focused tests.
 
 Ethereum transactions contain two independent components:
 
-
-value → ETH being transferred
-data → instructions for contract execution
-
+value → ETH being transferred  
+data → instructions for contract execution  
 
 The EVM routes execution based on calldata (`msg.data`) and transfers ETH based on value (`msg.value`).
 
-This contract demonstrates how contracts handle both correctly.
+This contract demonstrates how contracts correctly handle ETH entry, internal accounting, and protocol-safe exit.
 
 ---
 
@@ -28,6 +26,8 @@ This contract demonstrates how contracts handle both correctly.
 ### receive()
 
 Executed when ETH is sent with empty calldata.
+
+Condition:
 
 
 msg.data.length == 0
@@ -55,6 +55,8 @@ fallback()
 
 Executed when calldata exists but does not match any function selector.
 
+Condition:
+
 msg.data.length > 0
 AND
 no matching function
@@ -81,9 +83,15 @@ deposit()
 
 Explicit accounting entry point.
 
-balances[msg.sender] += msg.value
+balances[msg.sender] += msg.value;
 
-Use case: vault deposits, staking, protocol accounting.
+Use case:
+
+vault deposits
+
+staking deposits
+
+protocol accounting
 
 Effect:
 
@@ -126,6 +134,56 @@ current recommended approach
 
 Used by modern protocols (Uniswap, OpenZeppelin, etc.).
 
+Withdraw Pattern (Protocol-Safe Exit)
+
+The contract implements a safe withdraw mechanism using the Checks-Effects-Interactions pattern.
+
+Execution order:
+
+Validate balance
+
+Update internal accounting
+
+Transfer ETH using call
+
+Example:
+
+function withdraw(uint256 amount) external {
+    uint256 bal = balances[msg.sender];
+    if (bal < amount) revert InsufficientBalance(amount, bal);
+
+    balances[msg.sender] = bal - amount;
+
+    (bool ok, ) = payable(msg.sender).call{value: amount}("");
+    if (!ok) revert EthTransferFailed(msg.sender, amount);
+
+    emit Withdraw(msg.sender, amount);
+}
+
+Security invariant:
+
+Internal state is updated before external interaction.
+
+This guarantees accounting correctness and prevents inconsistent state transitions.
+
+Full Exit: withdrawAll()
+
+Allows a user to exit completely in a single call.
+
+balances[msg.sender] = 0;
+
+(bool ok, ) = payable(msg.sender).call{value: bal}("");
+
+This pattern is commonly used in:
+
+vault exits
+
+staking withdrawals
+
+escrow refunds
+
+It ensures deterministic state reset.
+
 Storage Model
 
 The contract demonstrates separation between protocol balance and internal accounting:
@@ -146,6 +204,10 @@ receive() executes on plain ETH transfer
 fallback() executes when calldata exists
 
 deposit() updates internal balances
+
+withdraw() transfers ETH safely
+
+withdrawAll() resets balance correctly
 
 events emitted correctly
 
@@ -175,9 +237,11 @@ contract balance vs user balance
 
 ETH transfer mechanisms (transfer, send, call)
 
+secure withdraw using Checks-Effects-Interactions pattern
+
 event-driven auditability
 
-protocol-grade testing
+protocol-grade accounting integrity
 
 Why This Matters
 
@@ -193,4 +257,4 @@ multisig wallets
 
 treasuries
 
-Correct ETH handling is foundational to protocol safety.
+Correct ETH handling and safe withdrawal patterns are foundational to protocol security.
