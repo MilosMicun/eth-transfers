@@ -9,8 +9,7 @@ contract ETHReceiver{
      event Received(address indexed sender, uint256 amount, bytes data);
      event Deposit(address indexed user, uint256 amount);
      event Withdraw(address indexed user, uint256 amount);
-     event InternalTransfer(address indexed from, address indexed to, uint256 amount);
-
+     
      mapping(address => uint256) public balances;
     
     receive() external payable {
@@ -42,7 +41,7 @@ contract ETHReceiver{
         uint256 bal = balances[msg.sender];
         if(bal < amount) revert InsufficientBalance(amount, bal);
 
-        balances[msg.sender]= bal - amount;
+        balances[msg.sender] = bal - amount;
 
         // interactions
         (bool ok,) = payable(msg.sender).call{value: amount}("");
@@ -64,9 +63,7 @@ contract ETHReceiver{
         emit Withdraw(msg.sender, bal);
     }
 
-    function balanceOF(address user) external view returns (uint256){
-        return balances[user];
-    }
+    
 
    
 }   
